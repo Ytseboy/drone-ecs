@@ -211,6 +211,21 @@ func main() {
 			Usage:  "ECS ulimits",
 			EnvVar: "PLUGIN_ULIMITS",
 		},
+		cli.StringFlag{
+			Name:   "target-group-arn",
+			Usage:  "The target group to be associated with the service",
+			EnvVar: "PLUGIN_TARGET_GROUP_ARN",
+		},
+		cli.StringFlag{
+			Name:   "launch-type",
+			Usage:  "The launch type associated with your service(Defaults to EC2)",
+			EnvVar: "PLUGIN_LAUNCH_TYPE",
+		},
+		cli.StringFlag{
+			Name:   "container-port",
+			Usage:  "Container Port for load balancer",
+			EnvVar: "PLUGIN_CONTAINER_PORT",
+		},
 	}
 	if err := app.Run(os.Args); err != nil {
 		log.Fatal(err)
@@ -256,6 +271,9 @@ func run(c *cli.Context) error {
 		ServiceNetworkSecurityGroups: c.StringSlice("service-network-security-groups"),
 		ServiceNetworkSubnets:        c.StringSlice("service-network-subnets"),
 		Ulimits:                      c.StringSlice("ulimits"),
+		LaunchType:                   c.String("launch-type"),
+		TargetGroupArn:               c.String("target-group-arn"),
+		ContainerPort:                c.Int64("container-port"),
 	}
 	return plugin.Exec()
 }

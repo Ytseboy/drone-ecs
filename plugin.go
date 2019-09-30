@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/aws/aws-sdk-go/aws"
+	"github.com/aws/aws-sdk-go/aws/awserr"
 	"github.com/aws/aws-sdk-go/aws/credentials"
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/ecs"
@@ -48,6 +49,9 @@ type Plugin struct {
 	HealthCheckStartPeriod  int64
 	HealthCheckTimeout      int64
 	Ulimits                 []string
+	TargetGroupArn          string
+	LaunchType              string
+	ContainerPort           int64
 
 	// ServiceNetworkAssignPublicIP - Whether the task's elastic network interface receives a public IP address. The default value is DISABLED.
 	ServiceNetworkAssignPublicIp string
@@ -197,7 +201,7 @@ func (p *Plugin) Exec() error {
 		}
 
 		pair := ecs.Ulimit{
-			Name: aws.String(name),
+			Name:      aws.String(name),
 			HardLimit: aws.Int64(hardLimit),
 			SoftLimit: aws.Int64(softLimit),
 		}
@@ -316,6 +320,36 @@ func (p *Plugin) Exec() error {
 
 	sresp, serr := svc.UpdateService(sparams)
 	if serr != nil {
+		if serr.(awserr.Error).Code() == ecs.ErrCodeServiceNotActiveException ||
+			serr.(awserr.Error).Code() == ecs.ErrCodeServiceNotFoundException ||
+			serr.(awserr.Error).Code() == ecs.ErrCodeInvalidParameterException {
+			nsParams := &ecs.CreateServiceInput{
+				ServiceName:             aws.String(p.Service),
+				Cluster:                 aws.String(p.Cluster),
+				TaskDefinition:          aws.String(val),
+				NetworkConfiguration:    p.setupServiceNetworkConfiguration(),
+				DesiredCount:            sparams.DesiredCount,
+				DeploymentConfiguration: sparams.DeploymentConfiguration,
+				LaunchType:              aws.String(p.LaunchType),
+			}
+
+			if p.TargetGroupArn != "" {
+				nsParams.LoadBalancers = []*ecs.LoadBalancer{
+					{
+						ContainerName:  aws.String(p.ContainerName),
+						ContainerPort:  aws.Int64(p.ContainerPort),
+						TargetGroupArn: aws.String(p.TargetGroupArn),
+					},
+				}
+			}
+
+			nsResp, nsErr := svc.CreateService(nsParams)
+			if nsErr != nil {
+				return nsErr
+			}
+			fmt.Println(nsResp)
+			return nil
+		}
 		return serr
 	}
 
@@ -332,9 +366,9 @@ func (p *Plugin) setupServiceNetworkConfiguration() *ecs.NetworkConfiguration {
 	if p.NetworkMode != ecs.NetworkModeAwsvpc {
 		return &netConfig
 	}
-	
+
 	if len(p.ServiceNetworkAssignPublicIp) != 0 {
-		netConfig.AwsvpcConfiguration.SetAssignPublicIp(p.ServiceNetworkAssignPublicIp);
+		netConfig.AwsvpcConfiguration.SetAssignPublicIp(p.ServiceNetworkAssignPublicIp)
 	}
 
 	if len(p.ServiceNetworkSubnets) > 0 {
