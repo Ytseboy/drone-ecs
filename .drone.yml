@@ -29,37 +29,6 @@ steps:
       go build -v -ldflags "-X main.version=${DRONE_TAG##v} -X main.build=${DRONE_BUILD_NUMBER}" -a -o release/linux/amd64/${DRONE_REPO_NAME}
     fi
 
-- name: build_linux_arm64
-  image: golang:1.13
-  depends_on: [ test ]
-  environment:
-    GOOS: linux
-    GOARCH: arm64
-    CGO_ENABLED: 0
-  commands:
-  - |
-    if test "${DRONE_TAG}" = ""; then
-      go build -v -ldflags "-X main.build=${DRONE_BUILD_NUMBER}" -a -o release/linux/arm64/${DRONE_REPO_NAME}
-    else
-      go build -v -ldflags "-X main.version=${DRONE_TAG##v} -X main.build=${DRONE_BUILD_NUMBER}" -a -o release/linux/arm64/${DRONE_REPO_NAME}
-    fi
-
-- name: build_linux_arm
-  image: golang:1.13
-  depends_on: [ test ]
-  environment:
-    GOOS: linux
-    GOARCH: arm
-    CGO_ENABLED: 0
-    GOARM: 7
-  commands:
-  - |
-    if test "${DRONE_TAG}" = ""; then
-      go build -v -ldflags "-X main.build=${DRONE_BUILD_NUMBER}" -a -o release/linux/arm/${DRONE_REPO_NAME}
-    else
-      go build -v -ldflags "-X main.version=${DRONE_TAG##v} -X main.build=${DRONE_BUILD_NUMBER}" -a -o release/linux/arm/${DRONE_REPO_NAME}
-    fi
-
 - name: publish_linux_amd64
   image: plugins/docker
   depends_on: [ build_linux_amd64 ]
@@ -74,36 +43,3 @@ steps:
     dockerfile: Dockerfile
   when:
     event: [ tag, push ]
-
-- name: publish_linux_arm64
-  image: plugins/docker
-  depends_on: [ build_linux_arm64 ]
-  settings:
-    auto_tag: true
-    auto_tag_suffix: linux-arm64
-    username:
-      from_secret: docker_username
-    password:
-      from_secret: docker_password
-    repo:
-      from_secret: plugin_repo
-    dockerfile: Dockerfile.arm64
-  when:
-    event: [ tag, push ]
-
-- name: publish_linux_arm
-  image: plugins/docker
-  depends_on: [ build_linux_arm ]
-  settings:
-    auto_tag: true
-    auto_tag_suffix: linux-arm
-    username:
-      from_secret: docker_username
-    password:
-      from_secret: docker_password
-    repo:
-      from_secret: plugin_repo
-    dockerfile: Dockerfile.arm
-  when:
-     event: [ tag, push ]
-
